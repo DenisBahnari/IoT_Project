@@ -2,3 +2,7 @@
 cloud_platform/data/mosquitto/data/*
 cloud_platform/data/mosquitto/log/*
 cloud_platform/data/mosquitto/config/certs/*
+
+cloud_platform/data/mosquitto/data/.gitkeep
+cloud_platform/data/mosquitto/log/.gitkeep
+cloud_platform/data/mosquitto/config/certs/.gitkeep 
