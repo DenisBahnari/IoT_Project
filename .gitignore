@@ -5,4 +5,7 @@ cloud_platform/data/mosquitto/config/certs/*
 
 cloud_platform/data/mosquitto/data/.gitkeep
 cloud_platform/data/mosquitto/log/.gitkeep
-cloud_platform/data/mosquitto/config/certs/.gitkeep 
+cloud_platform/data/mosquitto/config/certs/.gitkeep
+
+# Datasets files
+*.csv
