@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mqtt-broker
+    ports:
+      - 1883:1883
+      - 8883:8883
+      - 9001:9001
+    volumes:
+      - ./cloud_platform/data/mosquitto/config:/mosquitto/config
+      - ./cloud_platform/data/mosquitto/data:/mosquitto/data
+      - ./cloud_platform/data/mosquitto/log:/mosquitto/log
+      - ./cloud_platform/data/mosquitto/config/certs:/mosquitto/certs
+    networks:
+      idc-net:  
+        ipv4_address: 172.100.10.10
+
+
+
+
+networks:
+  idc-net:
+      driver: bridge
+      ipam:
+        driver: default
+        config:
+          - subnet: 172.100.10.0/24

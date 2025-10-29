@@ -1,0 +1,4 @@
+# Ignore Mosquitto data files
+cloud_platform/data/mosquitto/data/
+cloud_platform/data/mosquitto/log/
+cloud_platform/data/mosquitto/config/certs/
