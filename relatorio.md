@@ -7,7 +7,7 @@ docker system prune -a
 docker network prune
 docker volume prune
 
-sudo chown -R denis:denis /home/denis/Projects/IoT_Project/data/
+sudo chown -R denis:denis /home/denis/Projects/IoT_Project/cloud_platform/data/mosquitto/
 
 ## Mosquitto
 
@@ -24,4 +24,10 @@ Criacao de pasta para simular datasets do client
 Usa certificado CA para estabelecer comunicacao segura TLS com MQTT
 
 Cada detemrminado tempo publica uma row do CSV
+
+## Client Simulation Publish
+
+Definicao do container app que eh reposnsabilizado pela MQTT subscribe para obter info dos EVs online
+
+Responsavel pelo processor que vai processar os MQTT subs
 

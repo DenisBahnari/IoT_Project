@@ -6,7 +6,7 @@ import json
 BROKER_ADDRESS = "localhost"
 BROKER_PORT = 8883
 TOPIC_EV = "dataset/ev/online"
-CSV_FILE = "client_simulation/dataset_ev/dataset-EV_with_stations_for_online_simulation.csv"
+CSV_FILE = "client_1/dataset_ev/dataset-EV_with_stations_for_online_simulation.csv"
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
@@ -18,7 +18,7 @@ def on_connect(client, userdata, flags, rc):
 client = mqtt.Client()
 client.on_connect = on_connect
 
-client.tls_set(ca_certs="client_simulation/certs/ca.crt")
+client.tls_set(ca_certs="client_1/certs/ca.crt")
 client.username_pw_set("username", "senha123") # Valid credentials for simulation
 client.connect(BROKER_ADDRESS, BROKER_PORT, 60)
 client.loop_start()

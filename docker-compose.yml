@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mosquitto:
     image: eclipse-mosquitto:latest
@@ -14,16 +12,18 @@ services:
       - ./cloud_platform/data/mosquitto/log:/mosquitto/log
       - ./cloud_platform/data/mosquitto/config/certs:/mosquitto/certs
     networks:
-      idc-net:  
-        ipv4_address: 172.100.10.10
-
+      - idc-net
+  app:
+    build: ./cloud_platform/app
+    container_name: app
+    depends_on: 
+      - mosquitto
+    networks:
+      - idc-net
 
 
 
 networks:
   idc-net:
       driver: bridge
-      ipam:
-        driver: default
-        config:
-          - subnet: 172.100.10.0/24
+
