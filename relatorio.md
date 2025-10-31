@@ -3,6 +3,7 @@
 # Docker
 
 docker compose down -v
+docker compose up -d
 docker system prune -a
 docker network prune
 docker volume prune
@@ -30,4 +31,27 @@ Cada detemrminado tempo publica uma row do CSV
 Definicao do container app que eh reposnsabilizado pela MQTT subscribe para obter info dos EVs online
 
 Responsavel pelo processor que vai processar os MQTT subs
+
+## APP
+
+container de docker com mqtt subscriver e procesor
+
+mqtt subscriber, classe que serve para escutar o dataset online
+
+processor carrega os dados offline, e quardaos logo na BD
+
+processa os dados online que vem a cada 2s
+
+## DB
+
+Escolhido o postgres por ser uma base de dado que ja estamos familiarizados
+
+Configuraca da bd com o docker
+
+Definicao das tabelas 
+
+Para inserir dados offline na tabela deciduise guardar primeiro as estacoes em memoria de dicionario 
+e depois adicionar repsetivamente apenas as necessarias ja que existem muitas estacoes +/- 30000
+
+Depois todas as sessoes online vao sendo inseridas na BD semrque que o MQTT as recebe.
 

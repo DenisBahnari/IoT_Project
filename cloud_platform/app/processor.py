@@ -1,28 +1,52 @@
-import mqtt_subscriber as MQTTSub
+import utils.mqtt_subscriber as MQTTSub
+import utils.db as DB
+import json
 import csv
 
-OFFLINE_DATA_FOLDER = "../data/trainning_dataset/"
+OFFLINE_DATA_FOLDER = "trainnning_dataset/"
 DATASET_EV_FILE = "dataset-EV_with_stations.csv"
 DATASET_STATIONS_FILE = "EV-Stations_with_ids_coords.csv"
 
 # Ofline Data Loading
-with open(OFFLINE_DATA_FOLDER + DATASET_EV_FILE, newline="", encoding="utf-8") as csvfile:
-    reader = csv.DictReader(csvfile, delimiter=";")
-    for row in reader:
-        pass  # Send data do DB and process it
-
+print("Loading station data into memory...", flush=True)
+station_map = {}
 with open(OFFLINE_DATA_FOLDER + DATASET_STATIONS_FILE, newline="", encoding="utf-8") as csvfile:
     reader = csv.DictReader(csvfile, delimiter=";")
     for row in reader:
-        pass  # Send data do DB and process it
+        station_map[row["\ufeffStation ID"]] = row 
 
+print(f"Loaded {len(station_map)} stations into memory.", flush=True)
+
+
+print("Inserting EV sessions into the database...", flush=True)
+with open(OFFLINE_DATA_FOLDER + DATASET_EV_FILE, newline="", encoding="utf-8") as csvfile:
+    reader = csv.DictReader(csvfile, delimiter=";")
+    for row in reader:
+        station_id = row["Charging Station ID"]
+        station_row = station_map.get(station_id)
+        if station_row: # algumas nao tem estacao correspondente
+            DB.insert_station_data(json.dumps(station_row)) 
+        DB.insert_ev_data(json.dumps(row))
+
+print("Offline dataset loaded to database!", flush=True)
 
 # Online Data Processing
 mqqt_sub = MQTTSub.MqttSubscriber()
 mqqt_sub.connect()
+
+print("Subscribed to MQTT topic for online EV data...", flush=True)
+
+def on_message(client, userdata, msg):
+    DB.insert_ev_data(msg.payload.decode())
+    print(f"Online EV dataset sent to DB!", flush=True)
+mqqt_sub.client.on_message = on_message
+
 mqqt_sub.start()
-received_message = mqqt_sub.on_message()
-# Send data do DB and process it
+mqqt_sub.connect()
+mqqt_sub.start()
+
+
+
 
 
 

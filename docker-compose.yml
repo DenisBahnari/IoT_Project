@@ -18,10 +18,27 @@ services:
     container_name: app
     depends_on: 
       - mosquitto
+      - db
+    networks:
+      - idc-net
+  db:
+    image: postgres:17
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydatabase
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./cloud_platform/data/db:/docker-entrypoint-initdb.d
     networks:
       - idc-net
 
-
+volumes:
+  postgres_data:
 
 networks:
   idc-net:
