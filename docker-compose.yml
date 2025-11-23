@@ -36,6 +36,17 @@ services:
       - ./cloud_platform/data/db:/docker-entrypoint-initdb.d
     networks:
       - idc-net
+  ml_processor:
+    build: ./cloud_platform/ml_processor
+    container_name: ml_processor
+    ports:
+      - 5000:5000
+    depends_on:
+      - db
+      - app
+    networks:
+      - idc-net  
+
 
 volumes:
   postgres_data:

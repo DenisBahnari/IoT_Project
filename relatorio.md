@@ -2,11 +2,15 @@
 
 # Docker
 
+docker compose up --build
+
 docker compose down -v
-docker compose up -d
 docker system prune -a
 docker network prune
 docker volume prune
+
+docker system prune -a --volumes -f
+
 
 sudo chown -R denis:denis /home/denis/Projects/IoT_Project/cloud_platform/data/mosquitto/
 
@@ -54,4 +58,8 @@ Para inserir dados offline na tabela deciduise guardar primeiro as estacoes em m
 e depois adicionar repsetivamente apenas as necessarias ja que existem muitas estacoes +/- 30000
 
 Depois todas as sessoes online vao sendo inseridas na BD semrque que o MQTT as recebe.
+
+# ML Processor
+
+Definido o ml processor.py como um servidor via Flask
 
