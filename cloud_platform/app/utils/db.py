@@ -1,8 +1,9 @@
+from psycopg2.extras import RealDictCursor # type: ignore
+from datetime import datetime
+from decimal import Decimal
 import psycopg2 # type: ignore
 import json
 import time
-from psycopg2.extras import RealDictCursor # type: ignore
-from datetime import datetime
 
 def get_db_connection(max_retries=10, wait_seconds=1):
     for attempt in range(1, max_retries + 1):
@@ -128,30 +129,58 @@ def _to_timestamp(value):
         return datetime.strptime(value.strip(), "%d/%m/%y %H:%M")
     except ValueError:
         return None
+
+
+def get_last_inserted_session():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+            SELECT *
+            FROM ev_session
+            WHERE id = (SELECT MAX(id) FROM ev_session)
+    """)
+    last_session = cursor.fetchone()
     
+    cursor.close()
+    conn.close()
+    return last_session 
 
 
-def get_ev_session_by_id(id):
+def get_all_ev_sessions():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        insert_query = """
-            SELECT * 
-            FROM ev_session 
-            WHERE id = %s;
+        
+        select_query = """
+            SELECT *
+            FROM ev_session;
         """
 
-        cursor.execute(insert_query, (_to_int(id),))
-        row = cursor.fetchone()
+        cursor.execute(select_query)
+        rows = cursor.fetchall()
 
-        if row:
-            return row
+        if rows:
+            return rows
         else:
-            print("EV session with %s not found." % id)
-
+            print("No EV sessions found in the database!", flush=True)
+        
         cursor.close()
         conn.close()
-
     except Exception as e:
-        print(f"Error getting from DB: {e}")
+        print(f"Error getting from DB: {e}", flush=True)
+
+
+def make_json_safe(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, tuple):
+        # Converte tuple para lista
+        return [make_json_safe(x) for x in obj]
+    if isinstance(obj, list):
+        return [make_json_safe(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: make_json_safe(v) for k, v in obj.items()}
+    return obj

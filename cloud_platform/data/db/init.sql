@@ -35,5 +35,3 @@ CREATE TABLE IF NOT EXISTS ev_session (
 
 ALTER TABLE ev_session
 ADD CONSTRAINT unique_session UNIQUE (user_id, station_id, start_time);
-
-
