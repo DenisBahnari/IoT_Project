@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta  # ← Importa timedelta diretamente
+import random
 import paho.mqtt.client as mqtt # type: ignore
 import time
 import csv
@@ -24,10 +26,33 @@ client.connect(BROKER_ADDRESS, BROKER_PORT, 60)
 client.loop_start()
 
 def pub_ev_data():
-    with open(CSV_FILE, newline="", encoding="utf-8") as csvfile:
+    with open(CSV_FILE, newline="", encoding="utf-8-sig") as csvfile:  
         reader = csv.DictReader(csvfile, delimiter=";")
         for row in reader:
-            payload = json.dumps(row)
+            charging_duration = float(row.get("Charging Duration (hours)", 0))
+            
+            # Data base aleatória em 2024
+            random_day = random.randint(1, 365)
+            base_date = datetime(2024, 1, 1) + timedelta(days=random_day-1)  # ← timedelta direto
+            
+            # Hora aleatória entre 6h e 23h
+            random_hour = random.randint(6, 23)
+            random_minute = random.randint(0, 59)
+            
+            start_time = base_date.replace(hour=random_hour, minute=random_minute)
+            end_time = start_time + timedelta(hours=charging_duration)  # ← timedelta direto
+            
+            start_time_str = start_time.strftime("%d/%m/%y %H:%M")
+            end_time_str = end_time.strftime("%d/%m/%y %H:%M")
+            
+            row_with_user_id = {
+                "\ufeffUser ID": "User_1",
+                **row,
+                "Charging Start Time": start_time_str,
+                "Charging End Time": end_time_str
+            }
+            
+            payload = json.dumps(row_with_user_id)
             client.publish(TOPIC_EV, payload)
             print(f"Published to {TOPIC_EV}: {payload}")
             time.sleep(2)
