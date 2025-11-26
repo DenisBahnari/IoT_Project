@@ -12,3 +12,6 @@ __pycache__/
 # Ignore certs
 client_1/certs/*
 cloud_platform/app/certs/*
+
+# ML Files
+cloud_platform/ml_processor/models/*
