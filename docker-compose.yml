@@ -39,6 +39,8 @@ services:
   ml_processor:
     build: ./cloud_platform/ml_processor
     container_name: ml_processor
+    volumes:
+      - ./cloud_platform/ml_processor/models:/ml_processor/models
     ports:
       - 5000:5000
     depends_on:
