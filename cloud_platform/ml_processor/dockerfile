@@ -2,8 +2,10 @@ FROM python:3.9
 
 WORKDIR /ml_processor
 
-COPY requirements.txt /ml_processor
-COPY ml_processor.py /ml_processor
+COPY requirements.txt .
+COPY ml_processor.py .
+
+RUN mkdir -p models
 
 RUN pip install -r requirements.txt
 
