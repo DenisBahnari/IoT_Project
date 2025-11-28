@@ -1,9 +1,11 @@
 from psycopg2.extras import RealDictCursor # type: ignore
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 import psycopg2 # type: ignore
 import json
 import time
+
+from utils import stats as StatsDB
 
 def get_db_connection(max_retries=10, wait_seconds=1):
     for attempt in range(1, max_retries + 1):
@@ -171,13 +173,39 @@ def get_all_ev_sessions():
         print(f"Error getting from DB: {e}", flush=True)
 
 
+def get_daily_weekly_monthly_trends():
+    try:
+        conn = get_db_connection()
+        result = StatsDB.get_daily_weekly_monthly_trends(conn)
+        return result
+    except Exception as e:
+        print(f"Error connecting to DB: {e}")
+
+
+def get_time_of_day_distribution():
+    try:
+        conn = get_db_connection()
+        result = StatsDB.get_time_of_day_distribution(conn)
+        return result
+    except Exception as e:
+        print(f"Error connecting to DB: {e}")
+
+
+def get_user_behavior_patterns():
+    try:
+        conn = get_db_connection()
+        result = StatsDB.get_user_behavior_patterns(conn)
+        return result
+    except Exception as e:
+        print(f"Error connecting to DB: {e}")
+
+
 def make_json_safe(obj):
-    if isinstance(obj, datetime):
+    if isinstance(obj, (datetime, date)):
         return obj.isoformat()
     if isinstance(obj, Decimal):
         return float(obj)
     if isinstance(obj, tuple):
-        # Converte tuple para lista
         return [make_json_safe(x) for x in obj]
     if isinstance(obj, list):
         return [make_json_safe(x) for x in obj]

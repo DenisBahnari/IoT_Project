@@ -22,9 +22,13 @@ def update_dashboard_stats():
     todDistribution = DB.get_time_of_day_distribution()
     todDistribution = DB.make_json_safe(todDistribution)
 
+    userPatterns = DB.get_user_behavior_patterns()
+    userPatterns = DB.make_json_safe(userPatterns)
+
     totalStats = {
         "trendsStats": trendsStats,
-        "todDistribution": todDistribution
+        "todDistribution": todDistribution,
+        "userPatterns": userPatterns
     }
     mqtt_pub.publish(json.dumps(totalStats))
     print("Dashboard stats updated!", flush=True)
