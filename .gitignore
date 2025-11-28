@@ -15,3 +15,6 @@ cloud_platform/app/certs/*
 
 # ML Files
 cloud_platform/ml_processor/models/*
+
+# NodeRed Data
+cloud_platform/data/nodered/data/*

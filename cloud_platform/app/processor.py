@@ -1,4 +1,6 @@
+import time
 import utils.mqtt_subscriber as MQTTSub
+import utils.mqtt_publisher as MQTTPub
 import utils.db as DB
 import json
 import csv
@@ -7,6 +9,25 @@ import requests
 OFFLINE_DATA_FOLDER = "trainnning_dataset/"
 DATASET_EV_FILE = "dataset-EV_with_stations.csv"
 DATASET_STATIONS_FILE = "EV-Stations_with_ids_coords.csv"
+
+
+def update_dashboard_stats():
+    print("Updating dashboard stats...", flush=True)
+    mqtt_pub = MQTTPub.MqttPublisher()
+    mqtt_pub.connect()
+
+    trendsStats = DB.get_daily_weekly_monthly_trends()
+    trendsStats = DB.make_json_safe(trendsStats)
+
+    todDistribution = DB.get_time_of_day_distribution()
+    todDistribution = DB.make_json_safe(todDistribution)
+
+    totalStats = {
+        "trendsStats": trendsStats,
+        "todDistribution": todDistribution
+    }
+    mqtt_pub.publish(json.dumps(totalStats))
+    print("Dashboard stats updated!", flush=True)
 
 
 def main():
@@ -49,12 +70,20 @@ def main():
         error = result["error"]
         print(f"Erro: {error}")
 
+
+    # Update Dashboard Stats
+    update_dashboard_stats()
+
+
     # Online Data Processing
     url = "http://ml_processor:5000/predict_session"
     mqqt_sub = MQTTSub.MqttSubscriber()
     mqqt_sub.connect()
 
-    print("Subscribed to MQTT topic for online EV data...", flush=True)
+    print(flush=True)
+    print("#############################", flush=True)
+    print("Waiting for online EV data...", flush=True)
+    print("#############################", flush=True)
 
     def on_message(client, userdata, msg):
         row = msg.payload.decode()
@@ -81,6 +110,7 @@ def main():
             error = result["error"]
             print(f"Erro: {error}")
         
+        update_dashboard_stats()
         print("Online EV dataset sent to DB!", flush=True)
         
 

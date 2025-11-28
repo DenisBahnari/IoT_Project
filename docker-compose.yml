@@ -47,7 +47,26 @@ services:
       - db
       - app
     networks:
-      - idc-net  
+      - idc-net
+  nodered:
+    image: nodered/node-red:latest
+    container_name: node-red
+    ports:
+      - "1880:1880"
+      - "1881:1881"
+    environment:
+      - TZ=Europe/Lisbon
+      - NODE_RED_ENABLE_PROJECTS=false
+    volumes:
+      - ./cloud_platform/data/nodered/data:/data
+      - ./cloud_platform/data/nodered/flows:/data/flows
+    networks:
+      - idc-net
+    depends_on:
+      - mosquitto
+      - db
+      - app
+    restart: unless-stopped
 
 
 volumes:
