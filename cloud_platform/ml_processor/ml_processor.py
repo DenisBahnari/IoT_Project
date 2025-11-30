@@ -14,10 +14,10 @@ app = Flask(__name__)
 
 MODEL_DIR = "models"
 
-SESSION_CLUSTERS = 4          # KMeans clusters
+SESSION_CLUSTERS = 4         
 DBSCAN_EPS = 0.5
-DBSCAN_MIN_SAMPLES = 5
-IFOREST_CONTAM = 0.05         # 5% anomalies
+DBSCAN_MIN_SAMPLES = 10
+IFOREST_CONTAM = 0.0001      
 
 LIST_SCHEMA = [
     "idx",
@@ -40,24 +40,19 @@ LIST_SCHEMA = [
     "Vehicle Age (years)"
 ]
 
-
 def row_from_raw(raw):
-    """Accept dict or list → normalized dict."""
     if isinstance(raw, dict):
         return raw
-
     if isinstance(raw, (list, tuple)):
         out = {}
         for i, key in enumerate(LIST_SCHEMA):
             out[key] = raw[i] if i < len(raw) else None
         return out
-    
     if isinstance(raw, str):
         try:
             return json.loads(raw)
         except:
             return {}
-    
     return {}
 
 def safe_float(v):
@@ -72,7 +67,6 @@ def parse_datetime(v):
     except:
         return None
 
-
 def featurize_session(r):
     start = parse_datetime(r.get("Charging Start Time"))
     end   = parse_datetime(r.get("Charging End Time"))
@@ -82,11 +76,11 @@ def featurize_session(r):
     duration_h = safe_float(r.get("Charging Duration (hours)"))
     rate_kw = safe_float(r.get("Charging Rate (kW)"))
     cost = safe_float(r.get("Charging Cost (EUR)"))
-    soc_s = safe_float(r.get("State of Charge (Start %)"))
-    soc_e = safe_float(r.get("State of Charge (End %)"))
-    dist = safe_float(r.get("Distance Driven (since last charge) (km)"))
-    temp = safe_float(r.get("Temperature (C)"))
-    age  = safe_float(r.get("Vehicle Age (years)"))
+    soc_s = safe_float(r.get("State of Charge (Start %)") )
+    soc_e = safe_float(r.get("State of Charge (End %)") )
+    dist = safe_float(r.get("Distance Driven (since last charge) (km)") )
+    temp = safe_float(r.get("Temperature (C)") )
+    age  = safe_float(r.get("Vehicle Age (years)") )
 
     soc_delta = np.nan
     if not np.isnan(soc_s) and not np.isnan(soc_e):
@@ -98,18 +92,12 @@ def featurize_session(r):
 
     hour = start.hour if start is not None else np.nan
 
-    bin = None
-    if not np.isnan(hour):
-        h = int(hour)
-        if 5 <= h < 11:    bin = "morning"
-        elif 11 <= h < 15: bin = "midday"
-        elif 15 <= h < 19: bin = "afternoon"
-        elif 19 <= h < 23: bin = "evening"
-        else:              bin = "night"
-
     intensity = np.nan
     if duration_h and duration_h > 0 and not np.isnan(energy):
         intensity = energy / duration_h
+
+    if np.isnan(dist):
+        dist = 0.0
 
     return {
         "energy_kwh": energy,
@@ -123,12 +111,8 @@ def featurize_session(r):
         "temp_c": temp,
         "vehicle_age": age,
         "hour": hour,
-        "time_bin": bin,
         "energy_rel": energy_rel,
-        "intensity": intensity,
-        "vehicle_model": r.get("Vehicle Model"),
-        "user_id": r.get("User ID"),
-        "station_id": r.get("Charging Station ID")
+        "intensity": intensity
     }
 
 SESSION_NUM_COLS = [
@@ -149,50 +133,32 @@ SESSION_NUM_COLS = [
 
 def train_models(raw_rows):
     feat_rows = [featurize_session(row_from_raw(r)) for r in raw_rows]
-    df = pd.DataFrame(feat_rows)
+    df = pd.DataFrame(feat_rows).fillna(0)
 
-    df["bin_morning"] = (df["time_bin"] == "morning").astype(int)
-    df["bin_midday"] = (df["time_bin"] == "midday").astype(int)
-    df["bin_afternoon"] = (df["time_bin"] == "afternoon").astype(int)
-    df["bin_evening"] = (df["time_bin"] == "evening").astype(int)
-    df["bin_night"] = (df["time_bin"] == "night").astype(int)
-
-    full_cols = SESSION_NUM_COLS + [
-        "bin_morning", "bin_midday", "bin_afternoon", "bin_evening", "bin_night"
-    ]
-
-    df = df[full_cols].fillna(0)
-
-    # SCALE
     scaler = StandardScaler()
     X = scaler.fit_transform(df.values)
 
-    # K-MEANS
-    kmeans = KMeans(n_clusters=SESSION_CLUSTERS, random_state=42, n_init=10)
+    kmeans = KMeans(n_clusters=SESSION_CLUSTERS, random_state=42, n_init=20)
     kmeans.fit(X)
 
-    # DBSCAN
     dbscan = DBSCAN(eps=DBSCAN_EPS, min_samples=DBSCAN_MIN_SAMPLES)
     dbscan.fit(X)
 
-    # ISOLATION FOREST
     iso = IsolationForest(contamination=IFOREST_CONTAM, random_state=42)
     iso.fit(X)
 
-    trainning_results = {
+    joblib.dump({
         "scaler": scaler,
         "kmeans": kmeans,
         "dbscan": dbscan,
         "isolation": iso,
-        "columns": full_cols
-    }
-    joblib.dump(trainning_results, os.path.join(MODEL_DIR, "session_models.pkl"))
+        "columns": SESSION_NUM_COLS
+    }, os.path.join(MODEL_DIR, "session_models.pkl"))
 
     meta = {
         "n_sessions": len(df),
-        "kmeans_clusters": SESSION_CLUSTERS,
-        "dbscan_eps": DBSCAN_EPS,
-        "iforest_contam": IFOREST_CONTAM
+        "n_features": len(SESSION_NUM_COLS),
+        "kmeans_clusters": SESSION_CLUSTERS
     }
 
     with open(os.path.join(MODEL_DIR, "meta.json"), "w") as f:
@@ -200,17 +166,9 @@ def train_models(raw_rows):
 
     return meta
 
-
 def predict_session(raw):
     d = row_from_raw(raw)
     f = featurize_session(d)
-
-    # time-bin encoding
-    f["bin_morning"] = 1 if f["time_bin"]=="morning" else 0
-    f["bin_midday"] = 1 if f["time_bin"]=="midday" else 0
-    f["bin_afternoon"] = 1 if f["time_bin"]=="afternoon" else 0
-    f["bin_evening"] = 1 if f["time_bin"]=="evening" else 0
-    f["bin_night"] = 1 if f["time_bin"]=="night" else 0
 
     trainning_results = joblib.load(os.path.join(MODEL_DIR, "session_models.pkl"))
     scaler = trainning_results["scaler"]
@@ -219,20 +177,20 @@ def predict_session(raw):
     iso = trainning_results["isolation"]
     cols = trainning_results["columns"]
 
+    for col in cols:
+        if col not in f:
+            f[col] = 0
+
     row_vector = np.array([[f.get(c, 0) for c in cols]])
     X = scaler.transform(row_vector)
 
     km = int(kmeans.predict(X)[0])
-    db = int(dbscan.fit_predict(X)[0])  # -1 = noise
-    anom = int(iso.predict(X)[0])       # -1 = anomaly
+    db = int(dbscan.fit_predict(X)[0])
 
     return {
         "cluster_kmeans": km,
-        "cluster_dbscan": db,
-        "anomaly_iforest": anom
+        "cluster_dbscan": db
     }
-
-
 
 @app.route("/train", methods=["POST"])
 def train_endpoint():
@@ -246,7 +204,6 @@ def train_endpoint():
         print("ERROR TRAIN:", e)
         return jsonify({"status": "error", "error": str(e)}), 500
 
-
 @app.route("/predict_session", methods=["GET"])
 def predict_endpoint():
     payload = request.get_json()
@@ -259,6 +216,20 @@ def predict_endpoint():
         print("ERROR PREDICT:", e, flush=True)
         return jsonify({"status":"error","error":str(e)}), 500
 
+@app.route("/predict_all_sessions", methods=["GET"])
+def predict_all_endpoint():
+    payload = request.get_json()
+    if not payload or "ev_sessions" not in payload:
+        return jsonify({"error":"expected field 'ev_sessions'"}), 400
+    try:
+        results = {}
+        for raw in payload["ev_sessions"]:
+            res = predict_session(raw)
+            results[raw[0]] = res
+        return jsonify({"status":"ok","results":results})
+    except Exception as e:
+        print("ERROR PREDICT ALL:", e, flush=True)
+        return jsonify({"status":"error","error":str(e)}), 500
 
 if __name__ == "__main__":
     print("Starting ML server!")

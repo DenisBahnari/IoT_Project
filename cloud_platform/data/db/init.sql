@@ -35,3 +35,14 @@ CREATE TABLE IF NOT EXISTS ev_session (
 
 ALTER TABLE ev_session
 ADD CONSTRAINT unique_session UNIQUE (user_id, station_id, start_time);
+
+
+ALTER TABLE ev_session 
+ADD COLUMN IF NOT EXISTS cluster_kmeans INTEGER,
+ADD COLUMN IF NOT EXISTS cluster_dbscan INTEGER,
+ADD COLUMN IF NOT EXISTS clustering_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+
+CREATE INDEX IF NOT EXISTS idx_ev_session_cluster_kmeans ON ev_session(cluster_kmeans);
+CREATE INDEX IF NOT EXISTS idx_ev_session_cluster_dbscan ON ev_session(cluster_dbscan);
+CREATE INDEX IF NOT EXISTS idx_ev_session_user_cluster ON ev_session(user_id, cluster_kmeans);

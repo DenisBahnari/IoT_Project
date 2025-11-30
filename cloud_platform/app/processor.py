@@ -25,10 +25,18 @@ def update_dashboard_stats():
     userPatterns = DB.get_user_behavior_patterns()
     userPatterns = DB.make_json_safe(userPatterns)
 
+    cluster_profiles = DB.get_cluster_profiles()
+    cluster_profiles = DB.make_json_safe(cluster_profiles)
+
+    userClusters = DB.get_user_clusters()
+    userClusters = DB.make_json_safe(userClusters)
+
     totalStats = {
         "trendsStats": trendsStats,
         "todDistribution": todDistribution,
-        "userPatterns": userPatterns
+        "userPatterns": userPatterns,
+        "clusterProfiles": cluster_profiles,
+        "userClusters": userClusters
     }
     mqtt_pub.publish(json.dumps(totalStats))
     print("Dashboard stats updated!", flush=True)
@@ -74,13 +82,30 @@ def main():
         error = result["error"]
         print(f"Erro: {error}")
 
+    
+    # Predictions for Offline Data
+    print("Predicting Sessions...", flush=True)
+    url = "http://ml_processor:5000/predict_all_sessions"
+    ev_sessions_data = DB.get_all_ev_sessions()
+    ev_sessions_data = DB.make_json_safe(ev_sessions_data)
+    payload = {"ev_sessions": ev_sessions_data}
+    response = requests.get(url, json=payload)
+    result = response.json()
+    if response.status_code == 200:
+        print("Sessions Predicted!", flush=True)
+        predictions = result["results"]
+        DB.update_cluster_predictions(predictions)
+    else:
+        error = result["error"]
+        print(f"Erro: {error}")
+
 
     # Update Dashboard Stats
     update_dashboard_stats()
 
 
     # Online Data Processing
-    url = "http://ml_processor:5000/predict_session"
+    url = "http://ml_processor:5000//predict_all_sessions"
     mqqt_sub = MQTTSub.MqttSubscriber()
     mqqt_sub.connect()
 
@@ -100,16 +125,21 @@ def main():
 
         ev_session = DB.get_last_inserted_session()
         ev_session = DB.make_json_safe(ev_session)
+        ev_session = [ev_session]
 
-        payload = {"ev_session": ev_session}
+        payload = {"ev_sessions": ev_session}
         response = requests.get(url, json=payload)
         result = response.json()
         
         if response.status_code == 200:
             status = result["status"]
-            meta = result["result"]
+            predictions = result["results"]
+            DB.update_cluster_predictions(predictions)
             print(f" Status: {status} |", end="", flush=True)
             print(f" Result: {meta}", flush=True)
+            ev_session = DB.get_last_inserted_session()
+            ev_session = DB.make_json_safe(ev_session)
+            print(ev_session, flush=True)
         else:
             error = result["error"]
             print(f"Erro: {error}")

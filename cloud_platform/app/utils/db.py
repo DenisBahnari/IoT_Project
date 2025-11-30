@@ -108,6 +108,68 @@ def insert_station_data(json_data):
     cursor.close()
     conn.close()
 
+
+def update_cluster_predictions(cluster_results):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        updated_count = 0
+        error_count = 0
+        
+        for user_id, predictions in cluster_results.items():
+            try:
+                update_query = """
+                UPDATE ev_session 
+                SET 
+                    cluster_kmeans = %s,
+                    cluster_dbscan = %s, 
+                    clustering_timestamp = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """
+                
+                cursor.execute(update_query, (
+                    predictions.get('cluster_kmeans'),
+                    predictions.get('cluster_dbscan'), 
+                    user_id
+                ))
+                
+                if cursor.rowcount > 0:
+                    updated_count += cursor.rowcount
+                else:
+                    print(f"Warning: No sessions found for user {user_id}")
+                    error_count += 1
+                    
+            except Exception as e:
+                print(f"Error updating user {user_id}: {e}")
+                error_count += 1
+                continue
+        
+        conn.commit()
+        print(f"Cluster predictions updated successfully!")
+        print(f"Updated {updated_count} sessions across {len(cluster_results)} users")
+        print(f"Errors: {error_count}")
+        
+        return {
+            "success": True,
+            "updated_sessions": updated_count,
+            "total_users": len(cluster_results),
+            "errors": error_count
+        }
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error in update_cluster_predictions: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def _to_float(value):
     if value in (None, "", " "):
         return None
@@ -195,6 +257,23 @@ def get_user_behavior_patterns():
     try:
         conn = get_db_connection()
         result = StatsDB.get_user_behavior_patterns(conn)
+        return result
+    except Exception as e:
+        print(f"Error connecting to DB: {e}")
+
+def get_cluster_profiles():
+    try:
+        conn = get_db_connection()
+        result = StatsDB.analyze_cluster_profiles(conn)
+        return result
+    except Exception as e:
+        print(f"Error connecting to DB: {e}")
+
+
+def get_user_clusters():
+    try:
+        conn = get_db_connection()
+        result = StatsDB.get_user_clusters(conn)
         return result
     except Exception as e:
         print(f"Error connecting to DB: {e}")

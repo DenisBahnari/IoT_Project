@@ -220,3 +220,216 @@ def get_user_behavior_patterns(conn):
         return {"error": str(e)}
     finally:
         cursor.close()
+
+
+def analyze_cluster_profiles(conn):
+    """
+    Analisa as características de cada cluster KMeans baseado em SESSÕES
+    Retorna: quantidade de sessões e métricas agregadas por cluster
+    """
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    try:
+        # Query focada em SESSÕES por cluster
+        query = """
+        WITH session_metrics AS (
+            SELECT 
+                evs.cluster_kmeans,
+                
+                -- Contagem de sessões
+                COUNT(*) as total_sessions,
+                
+                -- Energia e custos (agregados por sessão)
+                AVG(evs.energy_consumed_kwh) as avg_energy_per_session,
+                SUM(evs.energy_consumed_kwh) as total_energy_consumed,
+                AVG(evs.charging_cost_eur) as avg_cost_per_session,
+                SUM(evs.charging_cost_eur) as total_cost,
+                
+                -- Duração e taxa de carregamento
+                AVG(evs.duration_h) as avg_duration,
+                AVG(evs.charging_rate_kw) as avg_charging_rate,
+                
+                -- Período preferido (baseado em sessões)
+                MODE() WITHIN GROUP (ORDER BY evs.time_of_day) as most_common_time,
+                MODE() WITHIN GROUP (ORDER BY evs.day_of_week) as most_common_day,
+                
+                -- Distribuição geográfica (contagem de estações únicas)
+                COUNT(DISTINCT evs.station_id) as unique_stations_used,
+                COUNT(DISTINCT est.distrito) as unique_districts,
+                
+                -- Informações do veículo (médias por sessão)
+                AVG(evs.battery_capacity_kwh) as avg_battery_capacity,
+                AVG(evs.vehicle_age_years) as avg_vehicle_age,
+                AVG(evs.distance_driven_km) as avg_distance_driven,
+                
+                -- Estado de carga
+                AVG(evs.soc_start) as avg_soc_start,
+                AVG(evs.soc_end) as avg_soc_end,
+                
+                -- Temperatura
+                AVG(evs.temperature_c) as avg_temperature,
+                
+                -- Horário médio de carregamento
+                AVG(EXTRACT(HOUR FROM evs.start_time)) as avg_start_hour,
+                
+                -- Utilizadores únicos (apenas para contexto)
+                COUNT(DISTINCT evs.user_id) as unique_users
+
+            FROM ev_session evs
+            LEFT JOIN ev_station est ON evs.station_id = est.station_id
+            WHERE evs.cluster_kmeans IS NOT NULL 
+            GROUP BY evs.cluster_kmeans
+        ),
+        time_distribution AS (
+            SELECT 
+                cluster_kmeans,
+                time_of_day,
+                COUNT(*) as session_count,
+                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY cluster_kmeans), 2) as percentage
+            FROM ev_session
+            WHERE cluster_kmeans IS NOT NULL AND time_of_day IS NOT NULL
+            GROUP BY cluster_kmeans, time_of_day
+        ),
+        vehicle_models AS (
+            SELECT 
+                cluster_kmeans,
+                vehicle_model,
+                COUNT(*) as model_count,
+                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY cluster_kmeans), 2) as model_percentage
+            FROM ev_session
+            WHERE cluster_kmeans IS NOT NULL AND vehicle_model IS NOT NULL
+            GROUP BY cluster_kmeans, vehicle_model
+        )
+        
+        SELECT 
+            sm.*,
+            td.time_of_day,
+            td.percentage as time_percentage,
+            vm.vehicle_model as most_common_vehicle,
+            vm.model_percentage as vehicle_percentage,
+            
+            -- Perfil baseado nas características das SESSÕES
+            CASE 
+                WHEN sm.avg_duration < 2 AND sm.most_common_time IN ('Morning', 'Afternoon') THEN 'Quick Day Chargers'
+                WHEN sm.avg_energy_per_session > 40 AND sm.avg_duration > 3 THEN 'Long Session Users'
+                WHEN sm.most_common_time = 'Night' THEN 'Overnight Chargers'
+                WHEN sm.avg_charging_rate > 10 THEN 'Fast Charging Sessions'
+                WHEN sm.unique_stations_used > 5 THEN 'Multi-Station Users'
+                ELSE 'Standard Usage'
+            END as session_profile
+
+        FROM session_metrics sm
+        LEFT JOIN time_distribution td ON sm.cluster_kmeans = td.cluster_kmeans 
+            AND td.session_count = (
+                SELECT MAX(session_count) 
+                FROM time_distribution td2 
+                WHERE td2.cluster_kmeans = sm.cluster_kmeans
+            )
+        LEFT JOIN (
+            SELECT DISTINCT ON (cluster_kmeans) 
+                cluster_kmeans, vehicle_model, model_percentage
+            FROM vehicle_models 
+            ORDER BY cluster_kmeans, model_count DESC
+        ) vm ON sm.cluster_kmeans = vm.cluster_kmeans
+        ORDER BY sm.cluster_kmeans;
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        # Processar resultados - foco em SESSÕES
+        cluster_analysis = {}
+        for row in results:
+            cluster_id = row['cluster_kmeans']
+            
+            cluster_analysis[cluster_id] = {
+                'cluster_id': cluster_id,
+                'session_count': row['total_sessions'],
+                'unique_users': row['unique_users'],
+                'session_profile': row['session_profile'],
+                'metrics': {
+                    'energy': {
+                        'avg_energy_per_session': round(row['avg_energy_per_session'], 2),
+                        'total_energy_consumed': round(row['total_energy_consumed'], 2)
+                    },
+                    'cost': {
+                        'avg_cost_per_session': round(row['avg_cost_per_session'], 4),
+                        'total_cost': round(row['total_cost'], 2)
+                    },
+                    'duration': {
+                        'avg_duration': round(row['avg_duration'], 2),
+                        'avg_charging_rate': round(row['avg_charging_rate'], 2)
+                    },
+                    'geographic': {
+                        'unique_stations_used': row['unique_stations_used'],
+                        'unique_districts': row['unique_districts']
+                    },
+                    'vehicle': {
+                        'avg_battery_capacity': round(row['avg_battery_capacity'], 2),
+                        'avg_vehicle_age': round(row['avg_vehicle_age'], 1),
+                        'avg_distance_driven': round(row['avg_distance_driven'], 2),
+                        'most_common_vehicle': row['most_common_vehicle'],
+                        'vehicle_percentage': row['vehicle_percentage']
+                    },
+                    'battery': {
+                        'avg_soc_start': round(row['avg_soc_start'], 1),
+                        'avg_soc_end': round(row['avg_soc_end'], 1)
+                    },
+                    'temporal': {
+                        'most_common_time': row['most_common_time'],
+                        'most_common_day': row['most_common_day'],
+                        'avg_start_hour': round(row['avg_start_hour'], 1),
+                        'peak_time_percentage': row['time_percentage']
+                    }
+                }
+            }
+        
+        return {
+            'success': True,
+            'cluster_analysis': cluster_analysis,
+            'total_clusters': len(cluster_analysis),
+            'summary': {
+                'total_sessions_analyzed': sum(cluster['session_count'] for cluster in cluster_analysis.values()),
+                'total_energy_consumed': sum(cluster['metrics']['energy']['total_energy_consumed'] for cluster in cluster_analysis.values()),
+                'total_cost': sum(cluster['metrics']['cost']['total_cost'] for cluster in cluster_analysis.values()),
+                'most_common_profile': max(cluster_analysis.values(), key=lambda x: x['session_count'])['session_profile']
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error analyzing clusters: {e}")
+        return {'success': False, 'error': str(e)}
+    finally:
+        cursor.close()
+
+
+def get_user_clusters(conn):
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT user_id, cluster_kmeans AS most_common_cluster
+        FROM (
+            SELECT 
+                user_id, 
+                cluster_kmeans,
+                COUNT(*) AS cluster_count,
+                ROW_NUMBER() OVER (
+                    PARTITION BY user_id 
+                    ORDER BY COUNT(*) DESC
+                ) AS rn
+            FROM ev_session
+            WHERE cluster_kmeans IS NOT NULL
+            GROUP BY user_id, cluster_kmeans
+        ) sub
+        WHERE rn = 1
+        ORDER BY user_id;
+    """)
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    # Converte para um dicionário (opcional)
+    result = {user_id: cluster for user_id, cluster in rows}
+    return result
