@@ -1,22 +1,15 @@
 # Electric Vehicle Charging Infrastructure Management
 
-## Group Number 7
-
-| Name           | Number |
-|----------------|--------|
-| Denis Bahnari  | 59878  |
-
 ---
 
 ## Project Description
 
-(Descreve aqui o objetivo, funcionalidades e arquitetura do projeto.)
 
 ---
 
 ## Compilation & Run Instructions
 
-### 🚀 Run the full project (backend + services)
+### Run the full project (backend + services)
 Para iniciar todos os serviços via Docker, executar na **root do projeto**:
 
 ```bash
